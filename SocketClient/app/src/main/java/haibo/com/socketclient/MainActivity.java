@@ -1,13 +1,8 @@
 package haibo.com.socketclient;
 
 import android.app.Activity;
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Message;
 import android.os.SystemClock;
 import android.text.TextUtils;
@@ -30,9 +25,13 @@ public class MainActivity extends Activity {
     private PrintWriter printWriter;
     private final String TAG = "MainActivity";
 
+    private TextView content_tv;
+
     private EditText edit_query;
 
     private static boolean isFlag = false;
+
+    private String content_msg;
 
     private Handler handler = new Handler(){
         @Override
@@ -40,10 +39,19 @@ public class MainActivity extends Activity {
             super.handleMessage(msg);
             switch (msg.what){
                 case 1:
-                    Log.e(TAG,"success connect");
+                    content_msg = "success connect";
+                    Log.e(TAG,content_msg);
+                    content_tv.setText(content_msg);
                     break;
                 case 2:
-                    Log.e(TAG, (String) msg.obj);
+                    Log.e(TAG, "receive:"+msg.obj);
+                    content_msg=content_msg+"\n"+msg.obj;
+                    content_tv.setText(content_msg);
+                    break;
+                case 3:
+                    content_msg ="connect failed,retry...";
+                    Log.e(TAG,content_msg);
+                    content_tv.setText(content_msg);
                     break;
             }
         }
@@ -53,19 +61,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         edit_query = (EditText) findViewById(R.id.edit_query);
-        Intent intent = new Intent("haibo.com.socketservel.service.TCPServerService");
-        bindService(intent, new ServiceConnection() {
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder service) {
-
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName name) {
-
-            }
-        }, Context.BIND_AUTO_CREATE);
-
+        content_tv = (TextView) findViewById(R.id.content_tv);
         new Thread(){
             @Override
             public void run() {
@@ -78,9 +74,10 @@ public class MainActivity extends Activity {
         String msg =edit_query.getText().toString().trim();
         if (!TextUtils.isEmpty(msg)&&printWriter!=null){
             printWriter.println(msg);
+            content_msg=content_msg+"\n"+"client:"+msg;
+            content_tv.setText(content_msg);
             Log.e(TAG, "client:"+msg);
         }
-
     }
 
     @Override
@@ -99,15 +96,15 @@ public class MainActivity extends Activity {
             } catch (IOException e) {
                 SystemClock.sleep(1000);
                 e.printStackTrace();
-                Log.e(TAG,"connect failed,retry...");
+                handler.sendEmptyMessage(3);
             }
 
             try {
                 BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 while (!MainActivity.isFlag){
+                    //每一秒钟从服务端读取一次数据
                     SystemClock.sleep(1000);
                     String msg = br.readLine();
-                    Log.e(TAG,"receive:"+msg);
                     if (msg!=null){
                         String time = null;
                         SimpleDateFormat sdf= new SimpleDateFormat("HH:mm:ss");
@@ -116,15 +113,13 @@ public class MainActivity extends Activity {
                         handler.obtainMessage(2,showedMsg).sendToTarget();
                     }
                 }
-                System.out.println("quit...");
+                Log.e(TAG, "client:"+"quit...");
                 printWriter.close();
                 br.close();
                 socket.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
-
         }
     }
 }
